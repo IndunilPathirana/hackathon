@@ -1,5 +1,7 @@
 require("dotenv").config();
 const express = require("express");
+const axios = require("axios");
+const bodyParser = require("body-parser");
 const { chromium } = require("playwright");
 const cors = require("cors");
 const fs = require("fs");
