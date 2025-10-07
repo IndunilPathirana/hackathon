@@ -8,11 +8,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Test endpoint
-app.get("/", (req, res) => {
-  res.send("Intelligent Test Automation API running");
-});
-
 // Generate test steps using ChatGPT
 app.post("/generate-test", async (req, res) => {
   const { description } = req.body;
