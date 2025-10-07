@@ -44,24 +44,67 @@ app.post("/generate-test", async (req, res) => {
 });
 
 // Run test with Playwright
+// Run test with Playwright (DigitalOcean-ready)
+// Run test with Playwright (fixed for video path)
 app.post("/run-test", async (req, res) => {
   const { steps } = req.body;
+  if (!steps) return res.status(400).json({ error: "Missing test steps" });
 
-  const browser = await chromium.launch({ headless: false });
-  const page = await browser.newPage();
+  const fs = require("fs");
+  const timestamp = Date.now();
+  const screenshotPath = `./screenshots/screenshot-${timestamp}.png`;
+  const videoDir = `./videos/test-${timestamp}`;
+  if (!fs.existsSync("./screenshots")) fs.mkdirSync("./screenshots");
+  if (!fs.existsSync("./videos")) fs.mkdirSync("./videos");
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+
+  const context = await browser.newContext({
+    recordVideo: { dir: videoDir, size: { width: 1280, height: 720 } },
+  });
+  const page = await context.newPage();
 
   try {
-    // For demo: navigate to example.com
-    await page.goto("https://example.com");
-    // TODO: convert steps into Playwright commands dynamically
-    console.log("Test steps:", steps);
+    const lower = steps.toLowerCase();
 
+    if (lower.includes("login page")) {
+      await page.goto("https://app.simplelogin.io/auth/login", {
+        waitUntil: "networkidle",
+      });
+    }
+    if (lower.includes("enter valid credentials")) {
+      await page.fill('input[name="email"]', "test@example.com");
+      await page.fill('input[name="password"]', "testpassword");
+      await page.click('button[type="submit"]');
+    }
+    if (lower.includes("dashboard") || lower.includes("home page")) {
+      await page.waitForLoadState("networkidle");
+      await page.waitForTimeout(2000);
+    }
+
+    await page.screenshot({ path: screenshotPath });
+
+    // Close browser/context first
+    await context.close();
     await browser.close();
-    res.json({ message: "Test run completed" });
+
+    // Get video file path after context is closed
+    const videoFiles = fs.readdirSync(videoDir);
+    const videoFile = videoFiles.length ? `${videoDir}/${videoFiles[0]}` : null;
+
+    res.json({
+      success: true,
+      message: "Test executed successfully!",
+      screenshot: screenshotPath,
+      video: videoFile,
+    });
   } catch (err) {
-    console.error(err.message);
     await browser.close();
-    res.status(500).send("Test failed");
+    console.error("❌ Error executing test:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
