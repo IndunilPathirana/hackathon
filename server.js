@@ -8,6 +8,21 @@ const testRoutes = require("./src/routes/test");
 
 const app = express();
 
+// Simple request body logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+
+  // Log request body for all requests
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log(
+      `📝 [${timestamp}] ${req.method} ${req.originalUrl} - Request Body:`
+    );
+    console.log(JSON.stringify(req.body, null, 2));
+  }
+
+  next();
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());

@@ -6,16 +6,22 @@ const config = require("../config");
 
 // Generate test steps using ChatGPT
 router.post("/generate-test", async (req, res) => {
-  const { description } = req.body;
+  const { Description } = req.body;
 
-  console.log("🤖 Generating test steps for:", description);
+  // Log the request body
   console.log(
-    "🔑 Using OpenAI API Key:",
-    config.openai.apiKey ? "✅ Configured" : "❌ Missing"
+    "📝 /generate-test - Request Body:",
+    JSON.stringify(req.body, null, 2)
   );
 
+  console.log("🤖 Generating test steps for:", Description);
+  // console.log(
+  //   "🔑 Using OpenAI API Key:",
+  //   config.openai.apiKey ? "✅ Configured" : "❌ Missing"
+  // );
+
   try {
-    const steps = await generateTestSteps(description);
+    const steps = await generateTestSteps(Description);
     res.json({ steps });
   } catch (err) {
     console.error("❌ Test generation error:", err.message);
@@ -26,6 +32,12 @@ router.post("/generate-test", async (req, res) => {
 // Run test with Playwright
 router.post("/run-test", async (req, res) => {
   const { steps } = req.body;
+
+  // Log the request body
+  console.log(
+    "📝 /run-test - Request Body:",
+    JSON.stringify(req.body, null, 2)
+  );
 
   if (!steps) {
     return res.status(400).json({ error: "Missing test steps" });
