@@ -31,28 +31,34 @@ async function runPlaywrightTest(steps) {
   try {
     const lower = steps.toLowerCase();
 
+    // TEMPORARILY DISABLED - SimpleLogin testing
     // Step 1: Navigate to login page
-    if (lower.includes("login page")) {
-      console.log("➡ Navigating to SimpleLogin login page...");
-      await page.goto("https://app.simplelogin.io/auth/login", {
-        waitUntil: "networkidle",
-      });
-    }
+    // if (lower.includes("login page")) {
+    //   console.log("➡ Navigating to SimpleLogin login page...");
+    //   await page.goto("https://app.simplelogin.io/auth/login", {
+    //     waitUntil: "networkidle",
+    //   });
+    // }
 
-    // Step 2: Enter credentials
-    if (lower.includes("enter valid credentials")) {
-      console.log("🧾 Filling in login credentials...");
-      await page.fill('input[name="email"]', "test@example.com"); // Replace with test account
-      await page.fill('input[name="password"]', "testpassword"); // Replace with test account
-      await page.click('button[type="submit"]');
-    }
+    // // Step 2: Enter credentials
+    // if (lower.includes("enter valid credentials")) {
+    //   console.log("🧾 Filling in login credentials...");
+    //   await page.fill('input[name="email"]', "test@example.com"); // Replace with test account
+    //   await page.fill('input[name="password"]', "testpassword"); // Replace with test account
+    //   await page.click('button[type="submit"]');
+    // }
 
-    // Step 3: Verify dashboard
-    if (lower.includes("dashboard") || lower.includes("home page")) {
-      console.log("✅ Waiting for dashboard to load...");
-      await page.waitForLoadState("networkidle");
-      await page.waitForTimeout(2000);
-    }
+    // // Step 3: Verify dashboard
+    // if (lower.includes("dashboard") || lower.includes("home page")) {
+    //   console.log("✅ Waiting for dashboard to load...");
+    //   await page.waitForLoadState("networkidle");
+    //   await page.waitForTimeout(2000);
+    // }
+
+    // For now, just navigate to a simple test page or take a basic screenshot
+    console.log("🔧 Running in test mode - taking basic screenshot");
+    await page.goto("https://example.com", { waitUntil: "networkidle" });
+    await page.waitForTimeout(2000);
 
     // Take screenshot in memory
     const screenshotBuffer = await page.screenshot();
@@ -94,6 +100,80 @@ async function runPlaywrightTest(steps) {
   }
 }
 
+async function testPegaConnection(pegaUrl) {
+  console.log("🔗 Testing connection to Pega server:", pegaUrl);
+
+  const timestamp = Date.now();
+  const screenshotFileName = `pega-test-${timestamp}.png`;
+
+  const browser = await chromium.launch({
+    headless: config.playwright.headless,
+    args: config.playwright.args,
+  });
+
+  const context = await browser.newContext({
+    // Set a longer timeout for initial connection
+    ignoreHTTPSErrors: true, // In case of SSL issues
+  });
+
+  const page = await context.newPage();
+
+  try {
+    console.log("🌐 Attempting to navigate to Pega server...");
+
+    // Try to navigate to the Pega URL with a timeout
+    const response = await page.goto(pegaUrl, {
+      waitUntil: "networkidle",
+      timeout: 30000, // 30 second timeout
+    });
+
+    console.log("📡 Response status:", response.status());
+    console.log("📡 Response URL:", response.url());
+
+    // Wait a bit for any dynamic content to load
+    await page.waitForTimeout(3000);
+
+    // Take screenshot
+    const screenshotBuffer = await page.screenshot({
+      fullPage: true, // Capture full page
+    });
+
+    // Upload screenshot to S3
+    const screenshotUrl = await uploadToS3(
+      screenshotFileName,
+      screenshotBuffer
+    );
+    console.log("📸 Pega test screenshot uploaded to S3:", screenshotUrl);
+
+    // Get page title and basic info
+    const pageTitle = await page.title();
+    const pageUrl = page.url();
+
+    await browser.close();
+
+    return {
+      success: true,
+      message: "Successfully connected to Pega server!",
+      screenshot: screenshotUrl,
+      pageTitle,
+      pageUrl,
+      responseStatus: response.status(),
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    await browser.close();
+    console.error("❌ Failed to connect to Pega server:", error.message);
+
+    return {
+      success: false,
+      message: "Failed to connect to Pega server",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
 module.exports = {
   runPlaywrightTest,
+  testPegaConnection,
 };

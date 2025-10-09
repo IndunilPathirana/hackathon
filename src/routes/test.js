@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const { generateTestSteps } = require("../services/openaiService");
-const { runPlaywrightTest } = require("../services/playwrightService");
+const {
+  runPlaywrightTest,
+  testPegaConnection,
+} = require("../services/playwrightService");
 const config = require("../config");
 
 // Generate test steps using ChatGPT
@@ -48,6 +51,22 @@ router.post("/run-test", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("❌ Error executing test:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Test Pega server connectivity
+router.post("/test-pega-connection", async (req, res) => {
+  const pegaUrl =
+    "https://evonsys05.pegalabs.io/prweb/app/district-retirment-cs-system/";
+
+  console.log("📝 /test-pega-connection - Testing connectivity to:", pegaUrl);
+
+  try {
+    const result = await testPegaConnection(pegaUrl);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error testing Pega connection:", err);
     res.status(500).json({ error: err.message });
   }
 });
