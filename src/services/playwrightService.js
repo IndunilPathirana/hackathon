@@ -91,11 +91,12 @@ async function runPlaywrightLoginTest() {
   }
 }
 
-async function runPlaywrightTest(steps) {
-  console.log("🧠 Received steps:\n", steps);
+async function runDynamicPlaywrightTest(stepsText) {
+  console.log("🧠 Starting dynamic Playwright test...");
+  const startTime = Date.now();
+  const timestamp = startTime;
 
-  const timestamp = Date.now();
-  const screenshotFileName = `screenshot-${timestamp}.png`;
+  const screenshotFileName = `dynamic-test-${timestamp}.png`;
   const videoDir = fs.mkdtempSync(
     path.join(os.tmpdir(), `video-${timestamp}-`)
   );
@@ -115,76 +116,111 @@ async function runPlaywrightTest(steps) {
   const page = await context.newPage();
 
   try {
-    const lower = steps.toLowerCase();
+    // Split into steps
+    const steps = stepsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
 
-    // TEMPORARILY DISABLED - SimpleLogin testing
-    // Step 1: Navigate to login page
-    if (lower.includes("login page")) {
-      console.log("➡ Navigating to SimpleLogin login page...");
-      await page.goto(
-        "https://evonsys05.pegalabs.io/prweb/app/district-retirment-cs-system/",
-        {
-          waitUntil: "networkidle",
+    console.log("📜 Parsed steps:", steps);
+
+    for (const step of steps) {
+      const lower = step.toLowerCase();
+      console.log(`⚙️ Executing step: "${step}"`);
+
+      // Navigation
+      if (lower.includes("go to") || lower.includes("navigate to")) {
+        const urlMatch = step.match(/https?:\/\/[^\s]+/);
+        if (urlMatch) {
+          const url = urlMatch[0];
+          console.log("🌍 Navigating to:", url);
+          await page.goto(url, { waitUntil: "networkidle" });
         }
-      );
+      }
+
+      // Input fields
+      else if (lower.includes("enter") || lower.includes("fill")) {
+        const valueMatch = step.match(/'(.*?)'/);
+        const nameMatch = step.match(/'(.*?)'/g);
+        if (nameMatch && nameMatch.length >= 2) {
+          const value = nameMatch[0].replace(/'/g, "");
+          const field = nameMatch[1].replace(/'/g, "");
+          console.log(`⌨️ Filling field [${field}] with value [${value}]`);
+          await page.fill(`input[name="${field}"]`, value);
+        } else if (valueMatch) {
+          console.log(`⚠️ Could not extract field name properly from: ${step}`);
+        }
+      }
+
+      // Clicks
+      else if (lower.includes("click")) {
+        const buttonMatch = step.match(/'(.*?)'/);
+        if (buttonMatch) {
+          const label = buttonMatch[1];
+          console.log(`🖱️ Clicking button with label: ${label}`);
+          await page.click(`text=${label}`).catch(async () => {
+            await page.click(`button:has-text("${label}")`).catch(() => {
+              console.log(`⚠️ Could not find button: ${label}`);
+            });
+          });
+        }
+      }
+
+      // Wait / pause
+      else if (lower.includes("wait") || lower.includes("pause")) {
+        const timeMatch = step.match(/\d+/);
+        const ms = timeMatch ? parseInt(timeMatch[0]) * 1000 : 2000;
+        console.log(`⏳ Waiting for ${ms}ms`);
+        await page.waitForTimeout(ms);
+      }
+
+      // Expectations (just logs for now)
+      else if (lower.includes("expect") || lower.includes("verify")) {
+        console.log("🔍 Expectation step detected (mock verification)");
+        // Future: can use page.textContent() or expect-like assertions
+      }
     }
 
-    // Step 2: Enter credentials
-    if (lower.includes("enter valid credentials")) {
-      console.log("🧾 Filling in login credentials...");
-      await page.fill('input[name="UserIdentifier"]', "DummyUser"); // Replace with test account
-      await page.fill('input[name="Password"]', "Rules@123"); // Replace with test account
-      await page.click('button[type="submit"]');
-    }
-
-    // Step 3: Verify dashboard
-    if (lower.includes("dashboard") || lower.includes("home page")) {
-      console.log("✅ Waiting for dashboard to load...");
-      await page.waitForLoadState("networkidle");
-      await page.waitForTimeout(2000);
-    }
-
-    // For now, just navigate to a simple test page or take a basic screenshot
-    console.log("🔧 Running in test mode - taking basic screenshot");
-    await page.goto("https://example.com", { waitUntil: "networkidle" });
-    await page.waitForTimeout(2000);
-
-    // Take screenshot in memory
-    const screenshotBuffer = await page.screenshot();
+    console.log("📸 Taking final screenshot...");
+    const screenshotBuffer = await page.screenshot({ fullPage: true });
     const screenshotUrl = await uploadToS3(
       screenshotFileName,
       screenshotBuffer
     );
-    console.log("📸 Screenshot uploaded to S3:", screenshotUrl);
+    console.log("✅ Screenshot uploaded to S3:", screenshotUrl);
 
-    // Close context/browser to finalize video
     await context.close();
     await browser.close();
 
     // Upload video
     const videoFiles = fs.readdirSync(videoDir);
     let videoUrl = null;
+
     if (videoFiles.length) {
       const videoPath = path.join(videoDir, videoFiles[0]);
       const videoBuffer = fs.readFileSync(videoPath);
-      const videoFileName = `video-${timestamp}.webm`;
+      const videoFileName = `dynamic-test-${timestamp}.webm`;
       videoUrl = await uploadToS3(videoFileName, videoBuffer);
       console.log("🎥 Video uploaded to S3:", videoUrl);
 
-      // Delete temp video file and folder
+      // Cleanup temp files
       fs.unlinkSync(videoPath);
     }
     fs.rmdirSync(videoDir);
 
+    const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
+
     return {
       success: true,
-      message: "Test executed successfully!",
+      message: "Dynamic Playwright test executed successfully!",
       screenshot: screenshotUrl,
       video: videoUrl,
+      duration: `${durationSec}s`,
+      executedAt: new Date().toISOString(),
     };
   } catch (error) {
     await browser.close();
-    console.error("❌ Error executing test:", error);
+    console.error("❌ Error executing dynamic test:", error);
     throw error;
   }
 }
@@ -263,7 +299,7 @@ async function testPegaConnection(pegaUrl) {
 }
 
 module.exports = {
-  runPlaywrightTest,
   runPlaywrightLoginTest,
   testPegaConnection,
+  runDynamicPlaywrightTest,
 };

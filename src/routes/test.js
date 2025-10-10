@@ -5,6 +5,7 @@ const {
   runPlaywrightTest,
   testPegaConnection,
   runPlaywrightLoginTest,
+  runDynamicPlaywrightTest,
 } = require("../services/playwrightService");
 const config = require("../config");
 
@@ -34,7 +35,7 @@ router.post("/generate-test", async (req, res) => {
 });
 
 // Run Playwright test (Login and capture screenshot + video)
-router.post("/run-test", async (req, res) => {
+router.post("/run-hard-test", async (req, res) => {
   try {
     console.log("⚡ Received /run-test request");
 
@@ -50,28 +51,32 @@ router.post("/run-test", async (req, res) => {
   }
 });
 
-// // Run test with Playwright
-// router.post("/run-test", async (req, res) => {
-//   const { steps } = req.body;
+// Run test dynamically based on received Playwright-style steps
+router.post("/run-test", async (req, res) => {
+  const { steps } = req.body;
 
-//   // Log the request body
-//   console.log(
-//     "📝 /run-test - Request Body:",
-//     JSON.stringify(req.body, null, 2)
-//   );
+  console.log("🧠 /run-test - Incoming steps:", steps);
 
-//   if (!steps) {
-//     return res.status(400).json({ error: "Missing test steps" });
-//   }
+  if (!steps || typeof steps !== "string") {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Invalid or missing 'steps'. Please provide Playwright-style steps as text.",
+    });
+  }
 
-//   try {
-//     const result = await runPlaywrightTest(steps);
-//     res.json(result);
-//   } catch (err) {
-//     console.error("❌ Error executing test:", err);
-//     res.status(500).json({ error: err.message });
-//   }
-// });
+  try {
+    const result = await runDynamicPlaywrightTest(steps);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("❌ Error running Playwright test:", error);
+    res.status(500).json({
+      success: false,
+      message: "Test execution failed!",
+      error: error.message,
+    });
+  }
+});
 
 // Test Pega server connectivity
 router.post("/test-pega-connection", async (req, res) => {
