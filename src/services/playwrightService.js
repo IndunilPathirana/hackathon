@@ -33,27 +33,30 @@ async function runPlaywrightTest(steps) {
 
     // TEMPORARILY DISABLED - SimpleLogin testing
     // Step 1: Navigate to login page
-    // if (lower.includes("login page")) {
-    //   console.log("➡ Navigating to SimpleLogin login page...");
-    //   await page.goto("https://app.simplelogin.io/auth/login", {
-    //     waitUntil: "networkidle",
-    //   });
-    // }
+    if (lower.includes("login page")) {
+      console.log("➡ Navigating to SimpleLogin login page...");
+      await page.goto(
+        "https://evonsys05.pegalabs.io/prweb/app/district-retirment-cs-system/",
+        {
+          waitUntil: "networkidle",
+        }
+      );
+    }
 
-    // // Step 2: Enter credentials
-    // if (lower.includes("enter valid credentials")) {
-    //   console.log("🧾 Filling in login credentials...");
-    //   await page.fill('input[name="email"]', "test@example.com"); // Replace with test account
-    //   await page.fill('input[name="password"]', "testpassword"); // Replace with test account
-    //   await page.click('button[type="submit"]');
-    // }
+    // Step 2: Enter credentials
+    if (lower.includes("enter valid credentials")) {
+      console.log("🧾 Filling in login credentials...");
+      await page.fill('input[name="txtUserID"]', "DummyUser"); // Replace with test account
+      await page.fill('input[name="txtPassword"]', "Rules@123"); // Replace with test account
+      await page.click('button[type="submit"]');
+    }
 
-    // // Step 3: Verify dashboard
-    // if (lower.includes("dashboard") || lower.includes("home page")) {
-    //   console.log("✅ Waiting for dashboard to load...");
-    //   await page.waitForLoadState("networkidle");
-    //   await page.waitForTimeout(2000);
-    // }
+    // Step 3: Verify dashboard
+    if (lower.includes("dashboard") || lower.includes("home page")) {
+      console.log("✅ Waiting for dashboard to load...");
+      await page.waitForLoadState("networkidle");
+      await page.waitForTimeout(2000);
+    }
 
     // For now, just navigate to a simple test page or take a basic screenshot
     console.log("🔧 Running in test mode - taking basic screenshot");
