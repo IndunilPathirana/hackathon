@@ -38,7 +38,7 @@ async function runPlaywrightLoginTest() {
 
     console.log("🧾 Filling in login credentials...");
     await page.fill('input[name="UserIdentifier"]', "DummyUser");
-    await page.fill('input[name="Password"]', "Rules@123");
+    await page.fill('input[name="Password"]', "Deci@123");
     await page.click('button[type="submit"]');
 
     console.log("⌛ Waiting for dashboard/home page...");
