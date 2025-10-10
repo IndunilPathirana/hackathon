@@ -46,8 +46,8 @@ async function runPlaywrightTest(steps) {
     // Step 2: Enter credentials
     if (lower.includes("enter valid credentials")) {
       console.log("🧾 Filling in login credentials...");
-      await page.fill('input[name="txtUserID"]', "DummyUser"); // Replace with test account
-      await page.fill('input[name="txtPassword"]', "Rules@123"); // Replace with test account
+      await page.fill('input[name="UserIdentifier"]', "DummyUser"); // Replace with test account
+      await page.fill('input[name="Password"]', "Rules@123"); // Replace with test account
       await page.click('button[type="submit"]');
     }
 
@@ -59,9 +59,9 @@ async function runPlaywrightTest(steps) {
     }
 
     // For now, just navigate to a simple test page or take a basic screenshot
-    console.log("🔧 Running in test mode - taking basic screenshot");
-    await page.goto("https://example.com", { waitUntil: "networkidle" });
-    await page.waitForTimeout(2000);
+    // console.log("🔧 Running in test mode - taking basic screenshot");
+    // await page.goto("https://example.com", { waitUntil: "networkidle" });
+    // await page.waitForTimeout(2000);
 
     // Take screenshot in memory
     const screenshotBuffer = await page.screenshot();
