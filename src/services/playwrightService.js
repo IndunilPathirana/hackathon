@@ -5,6 +5,92 @@ const os = require("os");
 const config = require("../config");
 const { uploadToS3 } = require("../utils/s3Helper");
 
+async function runPlaywrightLoginTest() {
+  console.log("🚀 Starting Playwright login test...");
+
+  const startTime = Date.now();
+  const timestamp = startTime;
+  const screenshotFileName = `pega-login-${timestamp}.png`;
+  const videoDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), `video-${timestamp}-`)
+  );
+
+  const browser = await chromium.launch({
+    headless: config.playwright.headless,
+    args: config.playwright.args,
+  });
+
+  const context = await browser.newContext({
+    recordVideo: {
+      dir: videoDir,
+      size: config.playwright.videoSettings.size,
+    },
+  });
+
+  const page = await context.newPage();
+
+  try {
+    const pegaUrl =
+      "https://evonsys05.pegalabs.io/prweb/app/district-retirment-cs-system/";
+    console.log("🌐 Navigating to:", pegaUrl);
+
+    await page.goto(pegaUrl, { waitUntil: "networkidle" });
+
+    console.log("🧾 Filling in login credentials...");
+    await page.fill('input[name="UserIdentifier"]', "DummyUser");
+    await page.fill('input[name="Password"]', "Rules@123");
+    await page.click('button[type="submit"]');
+
+    console.log("⌛ Waiting for dashboard/home page...");
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(3000);
+
+    console.log("📸 Taking screenshot after login...");
+    const screenshotBuffer = await page.screenshot({ fullPage: true });
+    const screenshotUrl = await uploadToS3(
+      screenshotFileName,
+      screenshotBuffer
+    );
+    console.log("✅ Screenshot uploaded to S3:", screenshotUrl);
+
+    // Close context/browser to finalize video
+    await context.close();
+    await browser.close();
+
+    // Upload video
+    const videoFiles = fs.readdirSync(videoDir);
+    let videoUrl = null;
+
+    if (videoFiles.length) {
+      const videoPath = path.join(videoDir, videoFiles[0]);
+      const videoBuffer = fs.readFileSync(videoPath);
+      const videoFileName = `pega-login-${timestamp}.webm`;
+      videoUrl = await uploadToS3(videoFileName, videoBuffer);
+      console.log("🎥 Video uploaded to S3:", videoUrl);
+
+      // Cleanup temporary files
+      fs.unlinkSync(videoPath);
+    }
+    fs.rmdirSync(videoDir);
+
+    const durationMs = Date.now() - startTime;
+    const durationSec = (durationMs / 1000).toFixed(2);
+
+    return {
+      success: true,
+      message: "Test executed successfully!",
+      screenshot: screenshotUrl,
+      video: videoUrl,
+      duration: `${durationSec}s`,
+      executedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    await browser.close();
+    console.error("❌ Error executing test:", error);
+    throw error;
+  }
+}
+
 async function runPlaywrightTest(steps) {
   console.log("🧠 Received steps:\n", steps);
 
@@ -59,9 +145,9 @@ async function runPlaywrightTest(steps) {
     }
 
     // For now, just navigate to a simple test page or take a basic screenshot
-    // console.log("🔧 Running in test mode - taking basic screenshot");
-    // await page.goto("https://example.com", { waitUntil: "networkidle" });
-    // await page.waitForTimeout(2000);
+    console.log("🔧 Running in test mode - taking basic screenshot");
+    await page.goto("https://example.com", { waitUntil: "networkidle" });
+    await page.waitForTimeout(2000);
 
     // Take screenshot in memory
     const screenshotBuffer = await page.screenshot();
@@ -178,5 +264,6 @@ async function testPegaConnection(pegaUrl) {
 
 module.exports = {
   runPlaywrightTest,
+  runPlaywrightLoginTest,
   testPegaConnection,
 };
