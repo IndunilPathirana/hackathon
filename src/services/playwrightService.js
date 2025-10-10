@@ -92,11 +92,10 @@ async function runPlaywrightLoginTest() {
 }
 
 async function runDynamicPlaywrightTest(stepsText) {
-  console.log("🧠 Starting dynamic Playwright test...");
   const startTime = Date.now();
-  const timestamp = startTime;
+  const timestamp = Date.now();
 
-  const screenshotFileName = `dynamic-test-${timestamp}.png`;
+  const screenshotFileName = `screenshot-${timestamp}.png`;
   const videoDir = fs.mkdtempSync(
     path.join(os.tmpdir(), `video-${timestamp}-`)
   );
@@ -116,72 +115,66 @@ async function runDynamicPlaywrightTest(stepsText) {
   const page = await context.newPage();
 
   try {
-    // Split into steps
-    const steps = stepsText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+    const lines = stepsText.split("\n").map((line) => line.trim());
 
-    console.log("📜 Parsed steps:", steps);
+    for (const line of lines) {
+      if (!line) continue;
+      console.log("⚙️ Executing step:", line);
 
-    for (const step of steps) {
-      const lower = step.toLowerCase();
-      console.log(`⚙️ Executing step: "${step}"`);
-
-      // Navigation
-      if (lower.includes("go to") || lower.includes("navigate to")) {
-        const urlMatch = step.match(/https?:\/\/[^\s]+/);
-        if (urlMatch) {
-          const url = urlMatch[0];
-          console.log("🌍 Navigating to:", url);
+      // Navigate to URL
+      if (line.startsWith("Given I navigate to")) {
+        const match = line.match(/Given I navigate to "(.*)"/);
+        if (match) {
+          const url = match[1];
+          console.log("🌐 Navigating to:", url);
           await page.goto(url, { waitUntil: "networkidle" });
         }
       }
 
-      // Input fields
-      else if (lower.includes("enter") || lower.includes("fill")) {
-        const valueMatch = step.match(/'(.*?)'/);
-        const nameMatch = step.match(/'(.*?)'/g);
-        if (nameMatch && nameMatch.length >= 2) {
-          const value = nameMatch[0].replace(/'/g, "");
-          const field = nameMatch[1].replace(/'/g, "");
-          console.log(`⌨️ Filling field [${field}] with value [${value}]`);
-          await page.fill(`input[name="${field}"]`, value);
-        } else if (valueMatch) {
-          console.log(`⚠️ Could not extract field name properly from: ${step}`);
-        }
-      }
-
-      // Clicks
-      else if (lower.includes("click")) {
-        const buttonMatch = step.match(/'(.*?)'/);
-        if (buttonMatch) {
-          const label = buttonMatch[1];
-          console.log(`🖱️ Clicking button with label: ${label}`);
-          await page.click(`text=${label}`).catch(async () => {
-            await page.click(`button:has-text("${label}")`).catch(() => {
-              console.log(`⚠️ Could not find button: ${label}`);
-            });
+      // Fill input fields
+      else if (
+        line.startsWith("When I fill") ||
+        line.startsWith("And I fill")
+      ) {
+        const match = line.match(/I fill "(.*)" with "(.*)"/);
+        if (match) {
+          const fieldName = match[1];
+          const value = match[2];
+          console.log(`🧾 Filling field '${fieldName}' with '${value}'`);
+          await page.waitForSelector(`input[name="${fieldName}"]`, {
+            timeout: 10000,
           });
+          await page.fill(`input[name="${fieldName}"]`, value);
         }
       }
 
-      // Wait / pause
-      else if (lower.includes("wait") || lower.includes("pause")) {
-        const timeMatch = step.match(/\d+/);
-        const ms = timeMatch ? parseInt(timeMatch[0]) * 1000 : 2000;
-        console.log(`⏳ Waiting for ${ms}ms`);
-        await page.waitForTimeout(ms);
+      // Click button
+      else if (line.startsWith("And I click")) {
+        const match = line.match(/I click the "(.*)" button/);
+        if (match) {
+          const buttonTypeOrText = match[1];
+          console.log(`🔘 Clicking button '${buttonTypeOrText}'`);
+          try {
+            await page.click(`button[type="${buttonTypeOrText}"]`);
+          } catch {
+            await page.click(`button:has-text("${buttonTypeOrText}")`);
+          }
+        }
       }
 
-      // Expectations (just logs for now)
-      else if (lower.includes("expect") || lower.includes("verify")) {
-        console.log("🔍 Expectation step detected (mock verification)");
-        // Future: can use page.textContent() or expect-like assertions
+      // Wait for dashboard/homepage
+      else if (
+        line.startsWith("Then I should see") ||
+        line.includes("homepage loaded")
+      ) {
+        console.log("⌛ Waiting for dashboard/home page...");
+        await page.waitForLoadState("networkidle");
+        await page.waitForTimeout(3000);
       }
     }
 
-    console.log("📸 Taking final screenshot...");
+    // Take screenshot
+    console.log("📸 Taking screenshot...");
     const screenshotBuffer = await page.screenshot({ fullPage: true });
     const screenshotUrl = await uploadToS3(
       screenshotFileName,
@@ -189,17 +182,17 @@ async function runDynamicPlaywrightTest(stepsText) {
     );
     console.log("✅ Screenshot uploaded to S3:", screenshotUrl);
 
+    // Close context/browser to finalize video
     await context.close();
     await browser.close();
 
     // Upload video
     const videoFiles = fs.readdirSync(videoDir);
     let videoUrl = null;
-
     if (videoFiles.length) {
       const videoPath = path.join(videoDir, videoFiles[0]);
       const videoBuffer = fs.readFileSync(videoPath);
-      const videoFileName = `dynamic-test-${timestamp}.webm`;
+      const videoFileName = `video-${timestamp}.webm`;
       videoUrl = await uploadToS3(videoFileName, videoBuffer);
       console.log("🎥 Video uploaded to S3:", videoUrl);
 
@@ -208,11 +201,12 @@ async function runDynamicPlaywrightTest(stepsText) {
     }
     fs.rmdirSync(videoDir);
 
-    const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
+    const durationMs = Date.now() - startTime;
+    const durationSec = (durationMs / 1000).toFixed(2);
 
     return {
       success: true,
-      message: "Dynamic Playwright test executed successfully!",
+      message: "Test executed successfully!",
       screenshot: screenshotUrl,
       video: videoUrl,
       duration: `${durationSec}s`,
@@ -221,7 +215,11 @@ async function runDynamicPlaywrightTest(stepsText) {
   } catch (error) {
     await browser.close();
     console.error("❌ Error executing dynamic test:", error);
-    throw error;
+    return {
+      success: false,
+      message: "Test execution failed!",
+      error: error.message,
+    };
   }
 }
 
